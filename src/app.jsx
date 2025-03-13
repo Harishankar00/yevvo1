@@ -14,6 +14,7 @@ const App = () => {
   const [distance, setDistance] = useState('');
   const [speed, setSpeed] = useState('');
   const [time, setTime] = useState('');
+  const [isAnswerCorrect, setIsAnswerCorrect] = useState(false);
   const [rateLetters, setRateLetters] = useState(['R', 'A', 'T', 'E']);
   const [traveledLetters, setTraveledLetters] = useState([
     'T',
@@ -35,9 +36,13 @@ const App = () => {
   ]);
   const [selectedJumbledWords, setSelectedJumbledWords] = useState([]);
   const [hasReachedDestination, setHasReachedDestination] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [sliderPosition, setSliderPosition] = useState(0); // Start at 0% (80m)
+  const [currentSliderValue, setCurrentSliderValue] = useState(80); // Start at 80m
 
   const timerRef = useRef(null);
   const animationRef = useRef(null);
+  const sliderRef = useRef(null);
 
   // Shuffle arrays on component mount
   useEffect(() => {
@@ -135,11 +140,16 @@ const App = () => {
   // Logo Page Component
   const LogoPage = () => (
     <div className="logo-page">
+      <div className="loading-circles">
+        <div className="loading-circle"></div>
+        <div className="loading-circle"></div>
+        <div className="loading-circle"></div>
+      </div>
       <div className="logo">
-        <img src='/assets/yevvo-logo.svg' alt='Yevvo Logo' />
+        <img src='/assets/yevvo-logo.svg' alt='SpeedMaster Logo' />
       </div>
       <h1 style={{ color: '#58cc02', fontSize: '28px', marginBottom: '20px' }}>
-        Yevvo
+        SpeedMaster
       </h1>
       <button 
         onClick={() => setCurrentSlide(1)} 
@@ -147,13 +157,16 @@ const App = () => {
           backgroundColor: '#58cc02',
           color: 'white',
           border: 'none',
-          padding: '15px 30px',
+          padding: '18px 36px',
           borderRadius: '25px',
-          fontSize: '18px',
+          fontSize: '20px',
           fontWeight: 'bold',
           boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
           cursor: 'pointer',
-          transition: 'all 0.2s'
+          transition: 'all 0.2s',
+          position: 'relative',
+          zIndex: 1,
+          minWidth: '200px'
         }}
       >
         Start Learning
@@ -163,9 +176,10 @@ const App = () => {
 
   // Navigate to next slide
   const nextSlide = () => {
-    if (currentSlide < totalSlides) {
+    if (currentSlide < totalSlides && hearts > 0) {
       setCurrentSlide(currentSlide + 1);
       resetAnimation();
+      setDistance('');
     }
   };
 
@@ -182,22 +196,27 @@ const App = () => {
     setDraggedAnswer(answer);
   };
 
-  // Handle drop
+  // Handle drop with updated heart logic
   const handleDrop = event => {
     event.preventDefault();
-
-    // For different questions based on the current slide
     if (currentSlide === 2) {
       setDistance(draggedAnswer);
-    } else if (currentSlide === 5) {
-      // Handle question in card 5
-      if (draggedAnswer === '120 meters') {
-        setHearts(hearts + 1);
-      } else {
-        setHearts(Math.max(0, hearts - 1));
+      if (draggedAnswer !== '120 meters') {
+        const newHearts = hearts - 1;
+        setHearts(newHearts);
+        
+        // If no hearts left, reset to animation page
+        if (newHearts === 0) {
+          setTimeout(() => {
+            setCurrentSlide(1); // Reset to animation page
+            setHearts(3); // Restore hearts
+            resetAnimation(); // Reset animation state
+            setDistance(''); // Clear answer
+          }, 1500); // Give time to show the wrong answer
+          return; // Don't proceed to next slide
+        }
       }
     }
-
     setDraggedAnswer(null);
   };
 
@@ -211,11 +230,41 @@ const App = () => {
     if (wordSet === 1) {
       const newSelectedLetters = [...selectedLetters1];
       newSelectedLetters.push(letter);
-      setSelectedLetters1(newSelectedLetters);
-
+      
+      // Remove the selected letter from available letters
       const newLetters = [...rateLetters];
       newLetters.splice(index, 1);
       setRateLetters(newLetters);
+      
+      // Update selected letters
+      setSelectedLetters1(newSelectedLetters);
+      
+      // Check if all boxes are filled (4 letters)
+      if (newSelectedLetters.length === 4) {
+        // Check if the word spells "RATE"
+        if (newSelectedLetters.join('') !== 'RATE') {
+          // Incorrect spelling - reduce heart
+          const newHearts = hearts - 1;
+          setHearts(newHearts);
+          
+          // If no hearts left, reset to animation page
+          if (newHearts === 0) {
+            setTimeout(() => {
+              setCurrentSlide(1); // Reset to animation page
+              setHearts(3); // Restore hearts
+              // Reset the letter drag state
+              setSelectedLetters1([]);
+              setRateLetters(shuffleArray(['R', 'A', 'T', 'E']));
+            }, 1500);
+          } else {
+            // If hearts remain, reset the current attempt
+            setTimeout(() => {
+              setSelectedLetters1([]);
+              setRateLetters(shuffleArray(['R', 'A', 'T', 'E']));
+            }, 1000);
+          }
+        }
+      }
     } else {
       const newSelectedLetters = [...selectedLetters2];
       newSelectedLetters.push(letter);
@@ -237,6 +286,80 @@ const App = () => {
     newJumbledWords.splice(index, 1);
     setJumbledWords(newJumbledWords);
   };
+
+  // Fixed slider value options
+  const sliderOptions = [80, 100, 120, 140];
+  
+  // Get the position for a specific option index (0-3)
+  const getPositionForOptionIndex = (index) => {
+    // Map each index to a specific position percentage
+    // Adjusted to have equal spacing between marks
+    const positions = [0, 33.33, 66.66, 100];
+    return positions[index];
+  };
+  
+  // Function to move slider to next option
+  const moveToNextOption = () => {
+    const currentIndex = sliderOptions.indexOf(currentSliderValue);
+    if (currentIndex < sliderOptions.length - 1) {
+      const nextIndex = currentIndex + 1;
+      const nextValue = sliderOptions[nextIndex];
+      console.log(`Moving to next option: ${nextValue} (index: ${nextIndex})`);
+      setCurrentSliderValue(nextValue);
+      
+      // Calculate position directly from index
+      const newPosition = getPositionForOptionIndex(nextIndex);
+      console.log(`New position: ${newPosition}%`);
+      setSliderPosition(newPosition);
+    }
+  };
+
+  // Function to move slider to previous option
+  const moveToPrevOption = () => {
+    const currentIndex = sliderOptions.indexOf(currentSliderValue);
+    if (currentIndex > 0) {
+      const prevIndex = currentIndex - 1;
+      const prevValue = sliderOptions[prevIndex];
+      console.log(`Moving to previous option: ${prevValue} (index: ${prevIndex})`);
+      setCurrentSliderValue(prevValue);
+      
+      // Calculate position directly from index
+      const newPosition = getPositionForOptionIndex(prevIndex);
+      console.log(`New position: ${newPosition}%`);
+      setSliderPosition(newPosition);
+    }
+  };
+
+  // Function to handle continue button click - updated to correctly check answer
+  const handleSliderContinue = () => {
+    if (currentSliderValue !== 120) {
+      // Only reduce hearts if the answer is wrong
+      const newHearts = hearts - 1;
+      setHearts(newHearts);
+      
+      // If no hearts left, reset to animation page
+      if (newHearts === 0) {
+        setTimeout(() => {
+          setCurrentSlide(1); // Reset to animation page
+          setHearts(3); // Restore hearts
+          resetAnimation(); // Reset animation state
+        }, 1500);
+        return;
+      }
+    }
+    
+    nextSlide();
+  };
+
+  // Initialize slider position when slide 5 is shown
+  useEffect(() => {
+    if (currentSlide === 5) {
+      // Reset to first option (80m)
+      setCurrentSliderValue(sliderOptions[0]);
+      setSliderPosition(getPositionForOptionIndex(0));
+      console.log("Initialized slider position to 80m");
+    }
+  }, [currentSlide]);
 
   return (
     <div className='app'>
@@ -260,11 +383,8 @@ const App = () => {
               ))}
             </div>
             <div className='hearts'>
-              {Array.from({ length: hearts }).map((_, index) => (
-                <span key={index} className='heart'>
-                  ❤️
-                </span>
-              ))}
+              <span className='heart'>❤️</span>
+              <span className='heart-counter'>×{hearts}</span>
             </div>
           </div>
 
@@ -331,7 +451,9 @@ const App = () => {
             {currentSlide === 2 && (
               <div className='question-container'>
                 <div className='character'>
-                  <img src='src/assets/anne.jpg' alt='Anne character' />
+                  <span role="img" aria-label="Anne character" style={{ fontSize: '50px', marginRight: '15px' }}>
+                    👩‍🏫
+                  </span>
                   <h3>Help Anne find the distance!</h3>
                 </div>
                 <div className='question'>
@@ -346,6 +468,11 @@ const App = () => {
                     className='answer-drop-area'
                     onDrop={handleDrop}
                     onDragOver={handleDragOver}
+                    style={{
+                      borderColor: distance ? '#58cc02' : '#ccc',
+                      backgroundColor: distance ? '#e5f8d0' : '#f0f0f0',
+                      color: distance ? '#58cc02' : '#666'
+                    }}
                   >
                     {distance ? distance : 'Drop your answer here'}
                   </div>
@@ -370,59 +497,93 @@ const App = () => {
                     )}
                   </div>
                 </div>
-                <button onClick={nextSlide} className='continue-btn'>
-                  Continue
-                </button>
+                <div className="continue-btn-container">
+                  <button 
+                    onClick={nextSlide} 
+                    className='continue-btn'
+                    disabled={!distance}
+                  >
+                    Continue
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Page 3: Speed facts card */}
             {currentSlide === 3 && (
               <div className='facts-container'>
-                <div className='dog-character'>
-                  <img src='/api/placeholder/100/100' alt='Dog Character' />
-                </div>
                 <div className='fact-card'>
                   <h3>Fun Fact About Speed</h3>
                   <div className='fact-image'>
                     <img
-                      src='/api/placeholder/300/200'
-                      alt='Speed fact illustration'
+                      src='/src/assets/cheetah-running.gif'
+                      alt='Cheetah running at high speed'
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMjM0NWNmZWM4ZmM4NzM4ZjBmYzM4ZDM4M2NhOGM0ZmE4ZTBkYjE2YiZlcD12MV9pbnRlcm5hbF9naWZzX2dpZklkJmN0PWc/l378zBXmzRxeCjQe4/giphy.gif';
+                      }}
+                      style={{ 
+                        objectFit: 'cover',
+                        width: '100%',
+                        height: '100%',
+                        display: 'block',
+                        marginBottom: '0'
+                      }}
                     />
                   </div>
                   <p>
                     The fastest land animal, the cheetah, can reach speeds of up to
-                    70 mph (112 km/h) in just a few seconds!
+                    70 mph (112 km/h) in just a few seconds! Their incredible acceleration
+                    and agility make them nature's perfect sprinters.
                   </p>
                 </div>
-                <button onClick={nextSlide} className='continue-btn'>
-                  Continue
-                </button>
+                <div className="continue-btn-container">
+                  <button onClick={nextSlide} className='continue-btn' disabled={hearts === 0}>
+                    Continue
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Page 4: YouTube Video */}
             {currentSlide === 4 && (
               <div className='video-container'>
-                <h3>Let's Learn More About Speed!</h3>
+                <h2>Understanding Speed & Motion</h2>
+                <p className="video-description">
+                  Watch this engaging video to learn about speed, velocity, and motion in everyday life!
+                </p>
                 <div className='video-embed'>
-                  <div className='video-placeholder'>
-                    <p>This is where the YouTube video would be embedded:</p>
-                    <p>https://www.youtube.com/watch?v=EGqpLug-sDk</p>
-                    <img src='/api/placeholder/560/315' alt='Video placeholder' />
-                  </div>
+                  <iframe
+                    src="https://www.youtube.com/embed/EGqpLug-sDk"
+                    title="Speed Learning Video"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
                 </div>
-                <button onClick={nextSlide} className='continue-btn'>
-                  Continue
-                </button>
+                <div className="video-summary">
+                  <h3>Key Points to Remember:</h3>
+                  <ul>
+                    <li>Speed is the rate of change in position</li>
+                    <li>Distance covered depends on speed and time</li>
+                    <li>Different objects move at different speeds</li>
+                    <li>Speed helps us measure how fast something moves</li>
+                  </ul>
+                </div>
+                <div className="continue-btn-container">
+                  <button onClick={nextSlide} className='continue-btn'>
+                    Continue
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Page 5: Distance Question */}
+            {/* Page 5: Distance Question - FIXED SLIDER IMPLEMENTATION */}
             {currentSlide === 5 && (
               <div className='question-container'>
                 <div className='character'>
-                  <img src='/api/placeholder/100/150' alt='Kid character' />
+                  <span role="img" aria-label="Kid character" style={{ fontSize: '50px', marginRight: '15px' }}>
+                    👦
+                  </span>
                   <h3>Find the distance when speed is given!</h3>
                 </div>
                 <div className='question'>
@@ -430,74 +591,144 @@ const App = () => {
                     A car travels at a speed of 40 meters per second for 3 seconds.
                     What distance does it cover?
                   </p>
-                  <div
-                    className='answer-drop-area'
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                  >
-                    {draggedAnswer ? draggedAnswer : 'Drop your answer here'}
+                  <div className='formula'>
+                    <p>Remember: Distance = Speed × Time</p>
                   </div>
-                  <div className='options'>
-                    {['80 meters', '120 meters', '100 meters', '140 meters'].map(
-                      (option, index) => (
-                        <div
-                          key={index}
-                          className='option'
-                          draggable
-                          onDragStart={e => handleDragStart(e, option)}
-                        >
-                          {option}
-                        </div>
-                      )
-                    )}
+                  <div className='ruler-container'>
+                    <div className='ruler' ref={sliderRef}>
+                      <div className='ruler-marks'>
+                        {sliderOptions.map((value, index) => (
+                          <div key={index} className='mark large'>
+                            <span className='mark-label'>{value}m</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div 
+                        className='slider-handle' 
+                        style={{ 
+                          left: `${2 + sliderPosition * 0.9}%`,
+                          transition: 'left 0.3s linear'
+                        }}
+                      />
+                    </div>
+                    <div className='slider-controls'>
+                      <button 
+                        className='arrow-button'
+                        onClick={moveToPrevOption}
+                        disabled={currentSliderValue === sliderOptions[0]}
+                      >
+                        ←
+                      </button>
+                      <button 
+                        className='arrow-button'
+                        onClick={moveToNextOption}
+                        disabled={currentSliderValue === sliderOptions[sliderOptions.length - 1]}
+                      >
+                        →
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <button onClick={nextSlide} className='continue-btn'>
-                  Continue
-                </button>
+                <div className="continue-btn-container">
+                  <button 
+                    onClick={handleSliderContinue} 
+                    className='continue-btn'
+                  >
+                    Continue
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* Page 6: Letter Drag Drop 1 */}
+            {/* Page 6: Letter Drag Drop for RATE */}
             {currentSlide === 6 && (
               <div className='letter-drag-container'>
-                <div className='dog-character'>
-                  <img src='/api/placeholder/100/100' alt='Dog Character' />
+                <div className='character'>
+                  <span role="img" aria-label="Teacher character" style={{ 
+                    fontSize: '32px', 
+                    marginRight: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <span style={{ fontSize: '16px' }}>🎓</span>
+                    <span>🦊</span>
+                    <span style={{ fontSize: '16px' }}>📚</span>
+                  </span>
+                  <h3 style={{ 
+                    color: '#1cb0f6',
+                    fontSize: '16px',
+                    background: '#f0f8ff',
+                    padding: '8px',
+                    borderRadius: '10px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    marginLeft: '8px',
+                    flex: 1,
+                    lineHeight: '1.3'
+                  }}>
+                    Form the word that means "How fast something moves"
+                  </h3>
                 </div>
-                <h3>
-                  Form the word that means "The speed or velocity at which something
-                  happens"
-                </h3>
-                <div className='word-container'>
+                <div className='word-container' style={{
+                  background: 'linear-gradient(145deg, #f0f8ff, #e6f3ff)',
+                  padding: '20px',
+                  borderRadius: '15px',
+                  boxShadow: 'inset 0 2px 5px rgba(0,0,0,0.1)'
+                }}>
                   {selectedLetters1.map((letter, index) => (
-                    <div key={index} className='letter-box filled'>
+                    <div key={index} className='letter-box filled' style={{
+                      animation: 'pop 0.3s ease-out'
+                    }}>
                       {letter}
                     </div>
                   ))}
                   {Array.from({ length: 4 - selectedLetters1.length }).map(
                     (_, index) => (
-                      <div key={index} className='letter-box'></div>
+                      <div key={index} className='letter-box' style={{
+                        borderStyle: 'dashed'
+                      }}></div>
                     )
                   )}
                 </div>
-                <div className='letters'>
+                <div className='letters' style={{
+                  marginTop: '25px'
+                }}>
                   {rateLetters.map((letter, index) => (
                     <div
                       key={index}
                       className='letter'
                       onClick={() => handleLetterDrag(letter, index, 1)}
+                      style={{
+                        background: 'linear-gradient(145deg, #ffffff, #f0f0f0)',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                        transform: 'translateY(0)',
+                        transition: 'all 0.3s ease',
+                        cursor: 'pointer',
+                        fontSize: '24px',
+                        fontWeight: 'bold',
+                        color: '#1cb0f6'
+                      }}
                     >
                       {letter}
                     </div>
                   ))}
                 </div>
-                <button
-                  onClick={nextSlide}
-                  className='continue-btn'
-                  disabled={selectedLetters1.length !== 4}
-                >
-                  Continue
-                </button>
+                <div className="continue-btn-container">
+                  <button
+                    onClick={nextSlide}
+                    className='continue-btn'
+                    disabled={selectedLetters1.length !== 4 || selectedLetters1.join('') !== 'RATE'}
+                    style={{
+                      background: selectedLetters1.length === 4 && selectedLetters1.join('') === 'RATE' 
+                        ? 'linear-gradient(145deg, #58cc02, #4caf02)'
+                        : '#cccccc',
+                      transform: 'translateY(0)',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    Continue {selectedLetters1.length === 4 && selectedLetters1.join('') === 'RATE' ? '🎉' : ''}
+                  </button>
+                </div>
               </div>
             )}
 
