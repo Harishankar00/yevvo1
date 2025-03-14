@@ -86,33 +86,33 @@ const App = () => {
     setIsAnimating(true);
     let startTime = null;
     const animationDuration = 6000; // 6 seconds
-    const totalDistance = 600; // 600 meters
-    const initialSpeed = 100; // Initial speed in m/s
+    const totalDistance = 90; // Reduced to 90 to ensure car stops at B
+    const initialSpeed = 100; // Initial speed in units/s
     
     const animate = (timestamp) => {
       if (!startTime) startTime = timestamp;
       const progress = timestamp - startTime;
       const elapsedTime = progress / 1000; // Convert to seconds
       
-      // Calculate current position (0-100%)
-      const percentage = Math.min((progress / animationDuration) * 100, 100);
+      // Calculate current position (0-90%)
+      const percentage = Math.min((progress / animationDuration) * totalDistance, totalDistance);
       setCarPosition(percentage);
       
       // Update timer
       setTimer(elapsedTime);
       
-      // Calculate current speed (avoid division by zero)
+      // Calculate current speed
       const currentSpeed = elapsedTime > 0 
-        ? (totalDistance * percentage / 100) / elapsedTime 
+        ? (totalDistance * percentage / totalDistance) / elapsedTime 
         : initialSpeed;
       setSpeed(currentSpeed.toFixed(2));
       
-      if (percentage < 100) {
+      if (percentage < totalDistance) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
         setHasReachedDestination(true);
         setIsAnimating(false);
-        setShowDefinition(true); // Show definition after animation
+        setShowDefinition(true);
         // Auto reset after 2 seconds
         setTimeout(resetAnimation, 2000);
       }
@@ -121,11 +121,12 @@ const App = () => {
     animationRef.current = requestAnimationFrame(animate);
   };
 
-  // Update the car style to make movement smoother
+  // Update the car style for smoother movement
   const carStyle = {
     left: `${carPosition}%`,
     transform: `scaleX(-1)`,
-    transition: 'left 0.016s linear' // Approximately 60fps
+    transition: 'left 0.1s linear',
+    willChange: 'left'
   };
 
   // Cleanup animation on unmount
@@ -146,9 +147,12 @@ const App = () => {
         <div className="loading-circle"></div>
       </div>
       <div className="logo">
-        <img src='/assets/yevvo-logo.svg' alt='SpeedMaster Logo' />
+        <img 
+          src='/assets/dog-logo.png' 
+          alt='SpeedMaster Logo' 
+        />
       </div>
-      <h1 style={{ color: '#58cc02', fontSize: '28px', marginBottom: '20px' }}>
+      <h1 style={{ color: '#58cc02', fontSize: '28px', marginBottom: '40px' }}>
         SpeedMaster
       </h1>
       <button 
@@ -394,25 +398,49 @@ const App = () => {
             {currentSlide === 1 && (
               <div className='animation-container'>
                 <h2>Speed Animation</h2>
-                <div className='road'>
+                <div className={`road ${isAnimating ? 'moving' : ''}`}>
+                  {/* Trees */}
+                  <div className='tree'>🌳</div>
+                  <div className='tree'>🌲</div>
+                  <div className='tree'>🌳</div>
+                  <div className='tree'>🌲</div>
+                  
+                  {/* Start point with marker */}
+                  <div className='point-marker' style={{ left: '-6px' }}></div>
                   <div className='start-point'>A</div>
+                  
+                  {/* Path and car */}
                   <div className='path'>
                     <div className='car' style={carStyle}>
-                      🚗
+                      🚙
                     </div>
-                    <div className='distance-label'>600 meters</div>
                   </div>
+                  
+                  {/* End point with marker */}
+                  <div className='point-marker' style={{ right: '-6px' }}></div>
                   <div className='end-point'>B</div>
                 </div>
                 <div className='metrics'>
-                  <div className='metric'>
-                    <span>Distance:</span> {(600 * carPosition / 100).toFixed(0)}m
+                  <div className='metric distance'>
+                    <span>Distance</span>
+                    <div className='metric-value-container'>
+                      <div className='metric-value'>{Math.round(carPosition)}</div>
+                      <div className='metric-unit'>m</div>
+                    </div>
                   </div>
-                  <div className='metric'>
-                    <span>Time:</span> {timer.toFixed(1)}s
+                  <div className='metric time'>
+                    <span>Time</span>
+                    <div className='metric-value-container'>
+                      <div className='metric-value'>{timer.toFixed(1)}</div>
+                      <div className='metric-unit'>s</div>
+                    </div>
                   </div>
-                  <div className='metric'>
-                    <span>Speed:</span> {speed} m/s
+                  <div className='metric speed'>
+                    <span>Speed</span>
+                    <div className='metric-value-container'>
+                      <div className='metric-value'>{speed}</div>
+                      <div className='metric-unit'>m/s</div>
+                    </div>
                   </div>
                 </div>
                 <div className='controls'>
@@ -420,12 +448,9 @@ const App = () => {
                     {isAnimating ? 'Moving...' : 'Start'}
                   </button>
                 </div>
-
+                
                 {showDefinition && (
                   <div className='definition'>
-                    <div className='dog-character'>
-                      <img src='src/assets/yevvo-logo.svg' alt='Dog Character' />
-                    </div>
                     <div className='definition-text'>
                       <h3>Speed Definition:</h3>
                       <p>
@@ -736,7 +761,13 @@ const App = () => {
             {currentSlide === 7 && (
               <div className='letter-drag-container'>
                 <div className='dog-character'>
-                  <img src='/api/placeholder/100/100' alt='Dog Character' />
+                  <img src='src/assets/dog.webp' alt='Dog Character' style={{
+                    marginRight: '8px',
+                    borderRadius: '50%',
+                    border: '2px solid #1cb0f6',
+                    padding: '2px',
+                    backgroundColor: 'white'
+                  }} />
                 </div>
                 <h3>Form the word that means "Moved from one place to another"</h3>
                 <div className='word-container'>
@@ -763,7 +794,27 @@ const App = () => {
                   ))}
                 </div>
                 <button
-                  onClick={nextSlide}
+                  onClick={() => {
+                    if (selectedLetters2.join('') === 'TRAVELED') {
+                      nextSlide();
+                    } else {
+                      const newHearts = hearts - 1;
+                      setHearts(newHearts);
+                      if (newHearts === 0) {
+                        setTimeout(() => {
+                          setCurrentSlide(1);
+                          setHearts(3);
+                          setSelectedLetters2([]);
+                          setTraveledLetters(shuffleArray(['T', 'R', 'A', 'V', 'E', 'L', 'E', 'D']));
+                        }, 1500);
+                      } else {
+                        setTimeout(() => {
+                          setSelectedLetters2([]);
+                          setTraveledLetters(shuffleArray(['T', 'R', 'A', 'V', 'E', 'L', 'E', 'D']));
+                        }, 1000);
+                      }
+                    }
+                  }}
                   className='continue-btn'
                   disabled={selectedLetters2.length !== 8}
                 >
